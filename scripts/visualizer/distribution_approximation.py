@@ -39,8 +39,13 @@ if __name__ == '__main__':
     plt.gca().spines['left'].set_visible(False)
     plt.gca().spines['top'].set_visible(False)
     plt.axis("off")
-    #plt.rc('legend', fontsize=20)
-    #plt.legend()
+    # plt.rc('legend', fontsize=20)
+    # plt.legend()
 
-    plt.savefig(path + "/result/picture/" + filename + ".eps", bbox_inches="tight", pad_inches=0.05)
+    # Определяем новый путь сохранения и создаём директорию, если её ещё нет
+    output_dir = os.path.join(path, "results_NK", "picture")
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Сохраняем файл в новую директорию
+    plt.savefig(os.path.join(output_dir, filename + ".eps"), bbox_inches="tight", pad_inches=0.05)
     plt.show()

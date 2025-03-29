@@ -78,6 +78,10 @@ if __name__ == '__main__':
         ax2.set_xlabel(r'time[$s$]', fontsize=30)
         ax2.set_ylabel(r'yaw[$rad$]', fontsize=30)
 
-    plt.savefig(path + "/result/picture/robot" + str(robot_num) + filename + ".png")
-    plt.savefig(path + "/result/picture/robot" + str(robot_num) + filename + ".eps", bbox_inches="tight", pad_inches=0.05)
+    # Новый путь сохранения: используем папку results_NK/picture/robot<robot_num>
+    output_dir = os.path.join(path, "results_NK", "picture", "robot" + str(robot_num))
+    os.makedirs(output_dir, exist_ok=True)
+
+    plt.savefig(os.path.join(output_dir, "robot" + str(robot_num) + filename + ".png"))
+    plt.savefig(os.path.join(output_dir, "robot" + str(robot_num) + filename + ".eps"), bbox_inches="tight", pad_inches=0.05)
     plt.show()
