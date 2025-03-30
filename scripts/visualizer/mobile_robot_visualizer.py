@@ -11,18 +11,18 @@ if __name__ == '__main__':
     filename = "kinematic_vehicle_gaussian"
     os.chdir('../../')
     path = os.getcwd()
-    data = pd.read_csv(path + "/result/data/" + filename + ".csv")
+    data = pd.read_csv(path + "/result/data/" + filename + ".csv") # Здесь нужно будет найти откуда датасет сохраняется в папку нужную
     flag_visualize_trajectory = True
 
     cm = 1 / 2.54
-    fig = plt.figure(figsize=(8.5,11))
+    fig = plt.figure(figsize=(8.5, 11))
     plt.subplots_adjust(wspace=0.4, hspace=0.8)
     plt.rcParams['mathtext.fontset'] = 'stix'
     plt.rcParams["font.size"] = 28
     plt.rcParams['xtick.labelsize'] = 30
     plt.rcParams['ytick.labelsize'] = 30
-    plt.rcParams['xtick.direction'] = 'in' # x axis in
-    plt.rcParams['ytick.direction'] = 'in' # y axis in
+    plt.rcParams['xtick.direction'] = 'in'  # x axis in
+    plt.rcParams['ytick.direction'] = 'in'  # y axis in
     plt.rcParams['font.family'] = 'Times New Roman'
 
     nkf_xy_error_mean = data['nkf_xy_error'].mean()
@@ -76,6 +76,10 @@ if __name__ == '__main__':
         ax3.set_xlabel(r'time[$s$]', fontsize=30)
         ax3.set_ylabel(r'velocity[$m/s$]', fontsize=30)
 
-    plt.savefig(path + "/result/picture/" + filename + ".png")
-    plt.savefig(path + "/result/picture/" + filename + ".eps", bbox_inches="tight", pad_inches=0.05)
+    # Новый путь сохранения: используем папку results_NK/picture
+    output_dir = os.path.join(path, "results_NK", "picture")
+    os.makedirs(output_dir, exist_ok=True)
+
+    plt.savefig(os.path.join(output_dir, filename + ".png"))
+    plt.savefig(os.path.join(output_dir, filename + ".eps"), bbox_inches="tight", pad_inches=0.05)
     plt.show()
