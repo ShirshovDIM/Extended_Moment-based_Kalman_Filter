@@ -71,4 +71,3 @@ if __name__ == '__main__':
 
     plt.savefig(os.path.join(output_dir, "robot" + str(robot_num) + output_filename + ".png"))
     plt.show()
-    plt.show()
