@@ -58,9 +58,8 @@ if __name__ == '__main__':
 
     plt.xlabel(r"$v_{\varphi, limit}[rad]$", fontsize=40)
     plt.legend(fontsize=35)
-
-    # Новый путь сохранения: используем новую директорию results_NK/picture/robot1
-    output_dir = os.path.join(path, "results_NK", "picture", "robot1")
+    
+    output_dir = os.path.join(path, "results", "picture", "robot1")
     os.makedirs(output_dir, exist_ok=True)
 
     plt.savefig(os.path.join(output_dir, filename + ".png"))

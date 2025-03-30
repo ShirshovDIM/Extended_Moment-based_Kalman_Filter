@@ -5,18 +5,24 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 #ADD_DEFINITIONS(-DEIGEN_NO_MALLOC -DUKF_DOUBLE_PRECISION)
 
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+)
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
 enable_testing()
 
 find_package(Boost REQUIRED)
 
 # --- Eigen ---
-set(Eigen3_DIR "/opt/homebrew/share/eigen3/cmake")
 find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIRS})
-include_directories(/opt/homebrew/include/eigen3)
 
 # --- Python (Anaconda) ---
-set(Python3_ROOT_DIR "/Users/nikitakrivoshey/anaconda3")
+set(Python3_ROOT_DIR "C:/Users/dbezu/AppData/Local/Programs/Python/Python311/")
 find_package(Python3 COMPONENTS Development NumPy REQUIRED)
 
 # --- GoogleTest ---

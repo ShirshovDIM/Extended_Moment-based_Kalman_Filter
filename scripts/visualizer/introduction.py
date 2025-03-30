@@ -58,10 +58,8 @@ if __name__ == '__main__':
     plt.gca().spines['top'].set_visible(False)
     plt.axis("off")
 
-    # Новый путь сохранения: используем папку results_NK в текущем рабочем каталоге
-    output_dir = os.path.join(path, "results_NK")
+    output_dir = os.path.join(path, "results")
     os.makedirs(output_dir, exist_ok=True)
 
-    # Сохранение графика в новую папку
     plt.savefig(os.path.join(output_dir, "result.png"), bbox_inches="tight", pad_inches=0.05)
     plt.show()

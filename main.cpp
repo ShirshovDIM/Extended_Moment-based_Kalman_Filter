@@ -50,9 +50,9 @@ int main() {
     barcode_map.insert(std::make_pair(63, 20));
 
     std::map<size_t, LandMark> landmark_map;
-    
-    std::ifstream landmark_file("/Users/nikitakrivoshey/Desktop/ProjectOptimisation/MKF/data/MRCLAM_Dataset1/Landmark_Groundtruth.dat");
-    if (landmark_file.fail()) {
+
+    std::ifstream landmark_file("C:/Users/dbezu/Desktop/MKF/MKF/data/MRCLAM_Dataset1/Landmark_Groundtruth.dat");
+    if(landmark_file.fail()) {
         std::cout << "Failed to Open the landmark truth file" << std::endl;
         return -1;
     }
@@ -67,8 +67,9 @@ int main() {
         landmark_file.close();
     }
 
-    // Чтение одометрии
-    const std::string odometry_filename = "/Users/nikitakrivoshey/Desktop/ProjectOptimisation/MKF/data/MRCLAM_Dataset1/Robot" + std::to_string(robot_num) + "_Odometry.dat";
+    // Reading files
+    const std::string odometry_filename = "C:/Users/dbezu/Desktop/MKF/MKF/data/MRCLAM_Dataset1/Robot" + std::to_string(robot_num) + "_Odometry.dat";
+
     std::ifstream odometry_file(odometry_filename);
     if (odometry_file.fail()) {
         std::cout << "Failed to Open the odometry file" << std::endl;
@@ -93,8 +94,8 @@ int main() {
         odometry_time.at(i) -= base_time;
     }
 
-    // Чтение ground truth
-    const std::string ground_truth_filename = "/Users/nikitakrivoshey/Desktop/ProjectOptimisation/MKF/data/MRCLAM_Dataset1/Robot" + std::to_string(robot_num) + "_Groundtruth.dat";
+    const std::string ground_truth_filename = "C:/Users/dbezu/Desktop/MKF/MKF/data/MRCLAM_Dataset1/Robot" + std::to_string(robot_num) + "_Groundtruth.dat";
+
     std::ifstream ground_truth_file(ground_truth_filename);
     if (ground_truth_file.fail()) {
         std::cout << "Failed to Open the ground truth file" << std::endl;
@@ -121,8 +122,8 @@ int main() {
         ground_truth_file.close();
     }
 
-    // Чтение измерений
-    const std::string measurement_filename = "/Users/nikitakrivoshey/Desktop/ProjectOptimisation/MKF/data/MRCLAM_Dataset1/Robot" + std::to_string(robot_num) + "_Measurement.dat";
+    const std::string measurement_filename = "C:/Users/dbezu/Desktop/MKF/MKF/data/MRCLAM_Dataset1/Robot" + std::to_string(robot_num) + "_Measurement.dat";
+
     std::ifstream measurement_file(measurement_filename);
     if (measurement_file.fail()) {
         std::cout << "Failed to Open the measurement file" << std::endl;
@@ -345,10 +346,18 @@ int main() {
         ukf_yaw_error_sum += ukf_yaw_errors.at(i);
     }
 
-
+     //Output data to file
     {
-        // Используем вашу директорию для результатов
-        std::string parent_dir = "/Users/nikitakrivoshey/Desktop/ProjectOptimisation/MKF/results_NK/robot" + std::to_string(robot_num);
+        std::string parent_dir = "C:/Users/dbezu/Desktop/MKF/MKF/results";
+        for(const auto& p : std::filesystem::directory_iterator("../result/"))
+        {
+            const auto abs_p = std::filesystem::canonical(p);
+            const auto flag_find = abs_p.string().find("data");
+            if(flag_find != std::string::npos) {
+                parent_dir = abs_p.string();
+            }
+        }
+        parent_dir += "/robot" + std::to_string(robot_num);
         std::filesystem::create_directories(parent_dir);
         const std::string filename = parent_dir + scenario.filename_;
         outputResultToFile(filename, times,

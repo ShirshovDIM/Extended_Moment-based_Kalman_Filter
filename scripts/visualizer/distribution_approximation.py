@@ -42,10 +42,8 @@ if __name__ == '__main__':
     # plt.rc('legend', fontsize=20)
     # plt.legend()
 
-    # Определяем новый путь сохранения и создаём директорию, если её ещё нет
-    output_dir = os.path.join(path, "results_NK", "picture")
+    output_dir = os.path.join(path, "results", "picture")
     os.makedirs(output_dir, exist_ok=True)
 
-    # Сохраняем файл в новую директорию
     plt.savefig(os.path.join(output_dir, filename + ".eps"), bbox_inches="tight", pad_inches=0.05)
     plt.show()
