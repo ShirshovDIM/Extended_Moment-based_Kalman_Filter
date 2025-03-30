@@ -58,7 +58,10 @@ if __name__ == '__main__':
 
     plt.xlabel(r"$v_{\varphi, limit}[rad]$", fontsize=40)
     plt.legend(fontsize=35)
+    
+    output_dir = os.path.join(path, "results", "picture", "robot1")
+    os.makedirs(output_dir, exist_ok=True)
 
-    plt.savefig(path + "/result/picture/robot1/" + filename + ".png")
-    plt.savefig(path + "/result/picture/robot1/" + filename + ".eps", format="eps", bbox_inches="tight", pad_inches=0.05)
+    plt.savefig(os.path.join(output_dir, filename + ".png"))
+    plt.savefig(os.path.join(output_dir, filename + ".eps"), format="eps", bbox_inches="tight", pad_inches=0.05)
     plt.show()

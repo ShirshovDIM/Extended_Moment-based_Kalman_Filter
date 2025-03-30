@@ -59,5 +59,8 @@ if __name__ == '__main__':
     plt.gca().spines['top'].set_visible(False)
     plt.axis("off")
 
-    plt.savefig("/home/yutaka/Desktop/result.png", bbox_inches="tight", pad_inches=0.05)
+    output_dir = os.path.join(path, "results")
+    os.makedirs(output_dir, exist_ok=True)
+
+    plt.savefig(os.path.join(output_dir, "result.png"), bbox_inches="tight", pad_inches=0.05)
     plt.show()

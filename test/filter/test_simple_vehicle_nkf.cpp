@@ -26,13 +26,14 @@ TEST(SimpleVehicleNKF, Update)
     // Observation Noise
     const double upper_wr = 10.0;
     const double lower_wr = 0.0;
-    const double upper_wtheta = (M_PI/10.0);
-    const double lower_wtheta = -(M_PI/10.0);
+    const double upper_wtheta = (3.14/10.0);
+    const double lower_wtheta = -(3.14/10.0);
     std::map<int, std::shared_ptr<BaseDistribution>> observation_noise_map{
             {OBSERVATION_NOISE::IDX::WR, std::make_shared<UniformDistribution>(lower_wr, upper_wr)},
-            {OBSERVATION_NOISE::IDX::WTHETA, std::make_shared<UniformDistribution>(lower_wtheta, upper_wtheta)}};
+            {OBSERVATION_NOISE::IDX::WR, std::make_shared<UniformDistribution>(lower_wtheta, upper_wtheta)}};
 
-    const auto updated_info = filter.update(state_info, y, observation_noise_map);
+    Eigen::Vector2d landmark(0.0, 0.0);
+    const auto updated_info = filter.update(state_info, y, landmark, observation_noise_map);
 
     std::cout << updated_info.covariance << std::endl;
 
