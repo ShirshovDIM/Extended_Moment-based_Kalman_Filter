@@ -17,14 +17,14 @@ int nCr(const int n, const int r);
 
 inline double normalizeRadian(const double rad, const double min_rad = -M_PI)
 {
-    const auto max_rad = min_rad + 2 * -M_PI;
+    const auto max_rad = min_rad + 2 * M_PI;
 
-    const auto value = std::fmod(rad, 2 * -M_PI);
+    const auto value = std::fmod(rad, 2 * M_PI);
     if (min_rad <= value && value < max_rad) {
         return value;
     }
 
-    return value - std::copysign(2 * -M_PI, value);
+    return value - std::copysign(2 * M_PI, value);
 }
 
 void outputResultToFile(const std::string& filename, const std::vector<double>& time,
