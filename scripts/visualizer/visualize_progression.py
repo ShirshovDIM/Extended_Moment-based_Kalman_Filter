@@ -22,16 +22,16 @@ if __name__ == '__main__':
     plt.rcParams["font.size"] = 28
     plt.rcParams['xtick.labelsize'] = 35
     plt.rcParams['ytick.labelsize'] = 35
-    plt.rcParams['xtick.direction'] = 'in' # x axis in
-    plt.rcParams['ytick.direction'] = 'in' # y axis in
+    plt.rcParams['xtick.direction'] = 'in'  # x axis in
+    plt.rcParams['ytick.direction'] = 'in'  # y axis in
     plt.rcParams['font.family'] = 'Times New Roman'
 
-    phi = [np.pi/2, np.pi/2.1, np.pi/2.3, np.pi/2.4, np.pi/2.5, np.pi/2.7, np.pi/ 2.8, np.pi/3, np.pi/4, np.pi/5, np.pi/6, np.pi/7, np.pi/8, np.pi/9]
+    phi = [np.pi/2, np.pi/2.1, np.pi/2.3, np.pi/2.4, np.pi/2.5, np.pi/2.7, np.pi/2.8, np.pi/3, np.pi/4, np.pi/5, np.pi/6, np.pi/7, np.pi/8, np.pi/9]
     for i in range(10, 90, 10):
         phi.append(np.pi/i)
 
     ekf_pos_error = [0.678911, 0.653025, 0.604626, 0.582253, 0.561124, 0.522538, 0.505022, 0.473369, 0.370337, 0.321377,
-                     0.293626, 0.275508, 0.262721, 0.253132,0.245386, 0.197286, 0.167771, 0.150334, 0.139681, 0.132707, 0.127794, 0.124101]
+                     0.293626, 0.275508, 0.262721, 0.253132, 0.245386, 0.197286, 0.167771, 0.150334, 0.139681, 0.132707, 0.127794, 0.124101]
     ukf_pos_error = [0.73617, 0.530213, 0.406161, 0.375781, 0.353037, 0.318908, 0.305039, 0.28227, 0.225088, 0.199009,
                      0.183783, 0.173801, 0.166696, 0.161334, 0.157114, 0.137406, 0.125916, 0.115141, 0.106267, 0.0996791, 0.0951945, 0.0926149]
     mkf_pos_error = [0.331895, 0.31686, 0.292308, 0.282037, 0.272773, 0.256674, 0.249623, 0.237127, 0.195376, 0.172233,
@@ -58,7 +58,10 @@ if __name__ == '__main__':
 
     plt.xlabel(r"$v_{\varphi, limit}[rad]$", fontsize=40)
     plt.legend(fontsize=35)
+    
+    output_dir = os.path.join(path, "results", "picture", "robot1")
+    os.makedirs(output_dir, exist_ok=True)
 
-    plt.savefig(path + "/result/picture/robot1/" + filename + ".png")
-    plt.savefig(path + "/result/picture/robot1/" + filename + ".eps", format="eps", bbox_inches="tight", pad_inches=0.05)
+    plt.savefig(os.path.join(output_dir, filename + ".png"))
+    plt.savefig(os.path.join(output_dir, filename + ".eps"), format="eps", bbox_inches="tight", pad_inches=0.05)
     plt.show()

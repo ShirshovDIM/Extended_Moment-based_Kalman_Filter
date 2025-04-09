@@ -66,5 +66,8 @@ if __name__ == '__main__':
         ax2.set_xlabel(r'time[$s$]', fontsize=30)
         ax2.set_ylabel(r'yaw[$rad$]', fontsize=30)
 
-    plt.savefig(path + "/result/picture/robot" + str(robot_num) + output_filename + ".png")
+    output_dir = os.path.join(path, "results", "picture", "robot" + str(robot_num))
+    os.makedirs(output_dir, exist_ok=True)
+
+    plt.savefig(os.path.join(output_dir, "robot" + str(robot_num) + output_filename + ".png"))
     plt.show()

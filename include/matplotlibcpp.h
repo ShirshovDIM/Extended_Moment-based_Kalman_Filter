@@ -342,11 +342,11 @@ namespace matplotlibcpp {
         template <> struct select_npy_type<int8_t> { const static NPY_TYPES type = NPY_INT8; };
         template <> struct select_npy_type<int16_t> { const static NPY_TYPES type = NPY_SHORT; };
         template <> struct select_npy_type<int32_t> { const static NPY_TYPES type = NPY_INT; };
-        template <> struct select_npy_type<int64_t> { const static NPY_TYPES type = NPY_INT64; };
+        //template <> struct select_npy_type<int64_t> { const static NPY_TYPES type = NPY_INT64; };
         template <> struct select_npy_type<uint8_t> { const static NPY_TYPES type = NPY_UINT8; };
         template <> struct select_npy_type<uint16_t> { const static NPY_TYPES type = NPY_USHORT; };
         template <> struct select_npy_type<uint32_t> { const static NPY_TYPES type = NPY_ULONG; };
-        template <> struct select_npy_type<uint64_t> { const static NPY_TYPES type = NPY_UINT64; };
+        //template <> struct select_npy_type<uint64_t> { const static NPY_TYPES type = NPY_UINT64; };
 
 // Sanity checks; comment them out or change the numpy type below if you're compiling on
 // a platform where they don't apply
