@@ -84,6 +84,7 @@ Eigen::MatrixXd invertBFGS(const Eigen::MatrixXd& S, int maxIters = 10, double t
 
 // Функция для аппроксимации обратной матрицы по алгоритму DFP
 Eigen::MatrixXd invertDFP(const Eigen::MatrixXd& S, int maxIters = 10, double tol = 1e-6) {
+
     int n = S.rows();
     int N2 = n * n;
     Eigen::MatrixXd J = Eigen::MatrixXd::Identity(n, n);

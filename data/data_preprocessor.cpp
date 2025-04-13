@@ -6,6 +6,10 @@
 #include <fstream>
 #include <algorithm>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 struct LandMark
 {
     LandMark(const double _x, const double _y, const double _std_x, const double _std_y) : x(_x), y(_y), std_x(_std_x), std_y(_std_y)

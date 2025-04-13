@@ -8,6 +8,7 @@
 #include <Eigen/Eigen>
 #include <Eigen/Sparse>
 
+
 #include "model/simple_vehicle_model.h"
 #include "distribution/base_distribution.h"
 
@@ -25,9 +26,11 @@ public:
     SimpleVehicleNKF();
 
     // Сеттер для метода обращения матрицы
+
     void setInversionMethod(InversionMethod method) {
         inv_method_ = method;
     }
+
 
     void setDiagonalThreshold(double threshold) { diagonal_threshold_ = threshold; }
     void setSparsityThreshold(double threshold) { sparsity_threshold_ = threshold; }

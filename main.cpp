@@ -55,7 +55,7 @@ int main() {
     // Чтение файла с информацией по маякам
     std::map<size_t, LandMark> landmark_map;
     {
-        std::ifstream landmark_file("D:/Optimization/Extended_MKF-shirshov_dev/data/MRCLAM_Dataset1/Landmark_Groundtruth.dat");
+        std::ifstream landmark_file("C:/Users/dbezu/Desktop/MKF/Extended_MKF/data/MRCLAM_Dataset1/Landmark_Groundtruth.dat");
         if (landmark_file.fail()) {
             std::cout << "Failed to Open the landmark truth file" << std::endl;
             return -1;
@@ -75,8 +75,8 @@ int main() {
     std::vector<double> odometry_v;
     std::vector<double> odometry_w;
     {
-        std::string odometry_filename = "D:/Optimization/Extended_MKF-shirshov_dev/data/MRCLAM_Dataset1/Robot"
-            + std::to_string(robot_num) + "_Odometry.dat";
+
+        std::string odometry_filename = "C:/Users/dbezu/Desktop/MKF/Extended_MKF/data/MRCLAM_Dataset1/Robot" + std::to_string(robot_num) + "_Odometry.dat";
         std::ifstream odometry_file(odometry_filename);
         if (odometry_file.fail()) {
             std::cout << "Failed to Open the odometry file" << std::endl;
@@ -103,8 +103,7 @@ int main() {
     std::vector<double> ground_truth_y;
     std::vector<double> ground_truth_yaw;
     {
-        std::string ground_truth_filename = "D:/Optimization/Extended_MKF-shirshov_dev/data/MRCLAM_Dataset1/Robot"
-            + std::to_string(robot_num) + "_Groundtruth.dat";
+        std::string ground_truth_filename = "C:/Users/dbezu/Desktop/MKF/Extended_MKF/data/MRCLAM_Dataset1/Robot" + std::to_string(robot_num) + "_Groundtruth.dat";
         std::ifstream ground_truth_file(ground_truth_filename);
         if (ground_truth_file.fail()) {
             std::cout << "Failed to Open the ground truth file" << std::endl;
@@ -132,8 +131,7 @@ int main() {
     std::vector<double> measurement_range;
     std::vector<double> measurement_bearing;
     {
-        std::string measurement_filename = "D:/Optimization/Extended_MKF-shirshov_dev/data/MRCLAM_Dataset1/Robot"
-            + std::to_string(robot_num) + "_Measurement.dat";
+        std::string measurement_filename = "C:/Users/dbezu/Desktop/MKF/Extended_MKF/data/MRCLAM_Dataset1/Robot" + std::to_string(robot_num) + "_Measurement.dat";
         std::ifstream measurement_file(measurement_filename);
         if (measurement_file.fail()) {
             std::cout << "Failed to Open the measurement file" << std::endl;
@@ -174,11 +172,11 @@ int main() {
     /////////////////////////////////
     ///// Подготовка логирования и CSV /////
     /////////////////////////////////
+
     std::string results_dir = "D:/Optimization/Extended_MKF-shirshov_dev/new_plots";
     std::filesystem::create_directories(results_dir);
     std::ofstream csvFile(results_dir + "/metrics_log.csv");
     csvFile << "Method,TotalTime_ms,AvgInvError,FinalInvError,ApproxMemUsage_KB,DiagonalSteps,SparseSteps,TotalUpdateSteps" << std::endl;
-
     std::vector<SimpleVehicleNKF::InversionMethod> inversionMethods = {
         SimpleVehicleNKF::InversionMethod::DIRECT,
         SimpleVehicleNKF::InversionMethod::BFGS,
@@ -187,7 +185,6 @@ int main() {
         SimpleVehicleNKF::InversionMethod::NEWTON_SCHULZ
     };
     std::vector<std::string> methodNames = { "DIRECT", "BFGS", "DFP", "LBFGS", "NEWTON_SCHULZ" };
-
     std::vector<double> totalTimeVec;
     std::vector<double> avgInvErrorVec;
     std::vector<double> finalInvErrorVec;
@@ -195,6 +192,7 @@ int main() {
     std::vector<int> diagonalStepsVec;
     std::vector<int> sparseStepsVec;
     std::vector<int> totalUpdateStepsVec;
+
 
     /////////////////////////////////
     ///// Симуляция для NKF с разными методами /////
@@ -208,7 +206,7 @@ int main() {
         nkf_local.setDiagonalThreshold(1e-6);
         nkf_local.setSparsityThreshold(1e-6);
         nkf_local.setUseSparseOptimization(true);
-
+      
         StateInfo nkf_state_info_local;
         nkf_state_info_local.mean = { ground_truth_x.front(), ground_truth_y.front(), ground_truth_yaw.front() };
         nkf_state_info_local.covariance = scenario.ini_cov_;
@@ -233,6 +231,7 @@ int main() {
                     if (next_time - measurement_time.at(measurement_id) < 0.0)
                         break;
                     const double dt = measurement_time.at(measurement_id) - current_time;
+
                     if (dt > 1e-5) {
                         const Eigen::Vector2d inputs = { odometry_v.at(odo_id) * dt, odometry_w.at(odo_id) * dt };
                         const std::map<int, std::shared_ptr<BaseDistribution>> system_noise_map = {
@@ -241,6 +240,7 @@ int main() {
                         };
                         nkf_state_info_local = nkf_local.predict(nkf_state_info_local, inputs, system_noise_map);
                     }
+
                     const Eigen::Vector2d meas = { measurement_range[measurement_id], measurement_bearing[measurement_id] };
                     const Eigen::Vector2d y = { meas(0) * std::cos(meas(1)), meas(0) * std::sin(meas(1)) };
                     const auto landmark = landmark_map.at(measurement_subject.at(measurement_id));
@@ -254,6 +254,7 @@ int main() {
                     current_time = measurement_time.at(measurement_id);
                     ++measurement_id;
 
+
                     double curInvError = nkf_local.last_inv_error_;
                     sumInvError += curInvError;
                     ++updateCount;
@@ -264,7 +265,7 @@ int main() {
                     break;
             }
 
-            // Предсказание до ground truth
+
             while (ground_truth_time.at(ground_truth_id) < current_time && ground_truth_time.at(ground_truth_id) < next_time)
                 ++ground_truth_id;
             if (current_time < ground_truth_time.at(ground_truth_id) && ground_truth_time.at(ground_truth_id) < next_time) {
@@ -294,6 +295,18 @@ int main() {
                 };
                 nkf_state_info_local = nkf_local.predict(nkf_state_info_local, inputs, system_noise_map);
             }
+        } // конец цикла по одометрии
+
+        auto endTime = std::chrono::high_resolution_clock::now();
+        long totalTimeMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+        double avgInvError = (updateCount > 0 ? sumInvError / updateCount : 0.0);
+        double finalInvError = (nkfInvErrors.empty() ? 0.0 : nkfInvErrors.back());
+
+        // Оценка использования памяти (приблизительно)
+        int n = nkf_local.last_S_.rows();
+        double memBytes = 0.0;
+        if (inversionMethods[methodIdx] == SimpleVehicleNKF::InversionMethod::DIRECT) {
+            memBytes = n * n * sizeof(double); // n^2 - только исходная матрица - наиболее оптимальный по памяти вариант
         }
 
         auto endTime = std::chrono::high_resolution_clock::now();
