@@ -75,8 +75,8 @@ int main() {
     std::vector<double> odometry_v;
     std::vector<double> odometry_w;
     {
-        std::string odometry_filename = "C:/Users/dbezu/Desktop/MKF/Extended_MKF/data/MRCLAM_Dataset1/Robot"
-            + std::to_string(robot_num) + "_Odometry.dat";
+
+        std::string odometry_filename = "C:/Users/dbezu/Desktop/MKF/Extended_MKF/data/MRCLAM_Dataset1/Robot" + std::to_string(robot_num) + "_Odometry.dat";
         std::ifstream odometry_file(odometry_filename);
         if (odometry_file.fail()) {
             std::cout << "Failed to Open the odometry file" << std::endl;
@@ -103,8 +103,7 @@ int main() {
     std::vector<double> ground_truth_y;
     std::vector<double> ground_truth_yaw;
     {
-        std::string ground_truth_filename = "C:/Users/dbezu/Desktop/MKF/Extended_MKF/data/MRCLAM_Dataset1/Robot"
-            + std::to_string(robot_num) + "_Groundtruth.dat";
+        std::string ground_truth_filename = "C:/Users/dbezu/Desktop/MKF/Extended_MKF/data/MRCLAM_Dataset1/Robot" + std::to_string(robot_num) + "_Groundtruth.dat";
         std::ifstream ground_truth_file(ground_truth_filename);
         if (ground_truth_file.fail()) {
             std::cout << "Failed to Open the ground truth file" << std::endl;
@@ -132,8 +131,7 @@ int main() {
     std::vector<double> measurement_range;
     std::vector<double> measurement_bearing;
     {
-        std::string measurement_filename = "C:/Users/dbezu/Desktop/MKF/Extended_MKF/data/MRCLAM_Dataset1/Robot"
-            + std::to_string(robot_num) + "_Measurement.dat";
+        std::string measurement_filename = "C:/Users/dbezu/Desktop/MKF/Extended_MKF/data/MRCLAM_Dataset1/Robot" + std::to_string(robot_num) + "_Measurement.dat";
         std::ifstream measurement_file(measurement_filename);
         if (measurement_file.fail()) {
             std::cout << "Failed to Open the measurement file" << std::endl;
@@ -161,10 +159,8 @@ int main() {
     ///// Настройка фильтров /////////
     /////////////////////////////////
     SimpleVehicleGaussianScenario scenario;
-    // EKF и UKF остаются без изменений
     SimpleVehicleEKF ekf;
     SimpleVehicleUKF ukf;
-    // Для NKF будем проводить серию запусков с разными методами
     const auto measurement_noise_map = scenario.observation_noise_map_;
 
     // Внешние возмущения
@@ -176,13 +172,11 @@ int main() {
     /////////////////////////////////
     ///// Подготовка логирования и CSV /////
     /////////////////////////////////
-    std::string results_dir = "C:/Users/dbezu/Desktop/MKF/Extended_MKF/results_NK_project/";
-    std::filesystem::create_directories(results_dir);
-    // Создаем CSV файл для метрик
-    std::ofstream csvFile(results_dir + "metrics_log.csv");
-    csvFile << "Method,TotalTime_ms,AvgInvError,FinalInvError,ApproxMemUsage_KB" << std::endl;
 
-    // Вектор методов обращения для NKF и их имена
+    std::string results_dir = "D:/Optimization/Extended_MKF-shirshov_dev/new_plots";
+    std::filesystem::create_directories(results_dir);
+    std::ofstream csvFile(results_dir + "/metrics_log.csv");
+    csvFile << "Method,TotalTime_ms,AvgInvError,FinalInvError,ApproxMemUsage_KB,DiagonalSteps,SparseSteps,TotalUpdateSteps" << std::endl;
     std::vector<SimpleVehicleNKF::InversionMethod> inversionMethods = {
         SimpleVehicleNKF::InversionMethod::DIRECT,
         SimpleVehicleNKF::InversionMethod::BFGS,
@@ -190,13 +184,15 @@ int main() {
         SimpleVehicleNKF::InversionMethod::LBFGS,
         SimpleVehicleNKF::InversionMethod::NEWTON_SCHULZ
     };
-    std::vector<std::string> methodNames = { "DIRECT", "BFGS", "DFP", "LBFGS", "NEWTON_SCHULZ"};
-
-    // Вектора для агрегированных метрик (используем double для всех)
+    std::vector<std::string> methodNames = { "DIRECT", "BFGS", "DFP", "LBFGS", "NEWTON_SCHULZ" };
     std::vector<double> totalTimeVec;
     std::vector<double> avgInvErrorVec;
     std::vector<double> finalInvErrorVec;
     std::vector<double> memUsageVec;
+    std::vector<int> diagonalStepsVec;
+    std::vector<int> sparseStepsVec;
+    std::vector<int> totalUpdateStepsVec;
+
 
     /////////////////////////////////
     ///// Симуляция для NKF с разными методами /////
@@ -204,28 +200,27 @@ int main() {
     for (size_t methodIdx = 0; methodIdx < inversionMethods.size(); ++methodIdx) {
         std::cout << "=== Executing experiment for NKF with the following method - " << methodNames[methodIdx] << " ===" << std::endl;
 
-        // Создаем новый экземпляр NKF и устанавливаем выбранный метод обращения
         SimpleVehicleNKF nkf_local;
         nkf_local.setInversionMethod(inversionMethods[methodIdx]);
-
-        // Переинициализируем состояние NKF
+        // Настройка параметров оптимизации
+        nkf_local.setDiagonalThreshold(1e-6);
+        nkf_local.setSparsityThreshold(1e-6);
+        nkf_local.setUseSparseOptimization(true);
+      
         StateInfo nkf_state_info_local;
         nkf_state_info_local.mean = { ground_truth_x.front(), ground_truth_y.front(), ground_truth_yaw.front() };
         nkf_state_info_local.covariance = scenario.ini_cov_;
 
-        // Сброс индексов измерений и ground truth для данного прогона
         size_t measurement_id = 0;
         size_t ground_truth_id = 0;
 
-        // Для сбора метрик по обновлениям
         double sumInvError = 0.0;
         int updateCount = 0;
-        std::vector<double> simTimes;    // моменты времени обновлений
-        std::vector<double> nkfInvErrors;  // динамика ошибки обращения
+        std::vector<double> simTimes;
+        std::vector<double> nkfInvErrors;
 
         auto startTime = std::chrono::high_resolution_clock::now();
 
-        // Основной цикл симуляции по одометрии (20000 шагов)
         for (size_t odo_id = 0; odo_id < 20000; ++odo_id) {
             double current_time = odometry_time.at(odo_id);
             const double next_time = odometry_time.at(odo_id + 1);
@@ -236,7 +231,7 @@ int main() {
                     if (next_time - measurement_time.at(measurement_id) < 0.0)
                         break;
                     const double dt = measurement_time.at(measurement_id) - current_time;
-                    // Предсказание до измерения
+
                     if (dt > 1e-5) {
                         const Eigen::Vector2d inputs = { odometry_v.at(odo_id) * dt, odometry_w.at(odo_id) * dt };
                         const std::map<int, std::shared_ptr<BaseDistribution>> system_noise_map = {
@@ -245,7 +240,7 @@ int main() {
                         };
                         nkf_state_info_local = nkf_local.predict(nkf_state_info_local, inputs, system_noise_map);
                     }
-                    // Обновление с измерением
+
                     const Eigen::Vector2d meas = { measurement_range[measurement_id], measurement_bearing[measurement_id] };
                     const Eigen::Vector2d y = { meas(0) * std::cos(meas(1)), meas(0) * std::sin(meas(1)) };
                     const auto landmark = landmark_map.at(measurement_subject.at(measurement_id));
@@ -259,7 +254,7 @@ int main() {
                     current_time = measurement_time.at(measurement_id);
                     ++measurement_id;
 
-                    // Сохраняем метрику текущего обновления: ошибка обращения
+
                     double curInvError = nkf_local.last_inv_error_;
                     sumInvError += curInvError;
                     ++updateCount;
@@ -270,7 +265,7 @@ int main() {
                     break;
             }
 
-            // Предсказание до ground truth (упрощенно)
+
             while (ground_truth_time.at(ground_truth_id) < current_time && ground_truth_time.at(ground_truth_id) < next_time)
                 ++ground_truth_id;
             if (current_time < ground_truth_time.at(ground_truth_id) && ground_truth_time.at(ground_truth_id) < next_time) {
@@ -313,122 +308,149 @@ int main() {
         if (inversionMethods[methodIdx] == SimpleVehicleNKF::InversionMethod::DIRECT) {
             memBytes = n * n * sizeof(double); // n^2 - только исходная матрица - наиболее оптимальный по памяти вариант
         }
+
+        auto endTime = std::chrono::high_resolution_clock::now();
+        long totalTimeMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+        double avgInvError = (updateCount > 0 ? sumInvError / updateCount : 0.0);
+        double finalInvError = (nkfInvErrors.empty() ? 0.0 : nkfInvErrors.back());
+
+        // Оценка использования памяти (приблизительно)
+        int n = nkf_local.last_S_.rows();
+        double memBytes = 0.0;
+        if (inversionMethods[methodIdx] == SimpleVehicleNKF::InversionMethod::DIRECT) {
+            memBytes = n * n * sizeof(double);
+        }
         else if (inversionMethods[methodIdx] == SimpleVehicleNKF::InversionMethod::BFGS ||
             inversionMethods[methodIdx] == SimpleVehicleNKF::InversionMethod::DFP) {
             double N2 = n * n;
-            memBytes = N2 * N2 * sizeof(double); // n^4 - матрицы Гессиана
+            memBytes = N2 * N2 * sizeof(double);
         }
         else if (inversionMethods[methodIdx] == SimpleVehicleNKF::InversionMethod::LBFGS) {
             double N2 = n * n;
             int m = 5;
-            memBytes = 2 * m * N2 * sizeof(double); // 10n² (при m=5) чуть менее оптимально для многомерок, в сравнении с методом Ньютона-Шульца
+            memBytes = 2 * m * N2 * sizeof(double);
         }
         else if (inversionMethods[methodIdx] == SimpleVehicleNKF::InversionMethod::NEWTON_SCHULZ) {
-            memBytes = 2 * n * n * sizeof(double); // X и R (n x n) - оптимально для многомерных структур
+            memBytes = 2 * n * n * sizeof(double);
         }
         double memKB = memBytes / 1024.0;
 
-        // Вывод метрик в консоль
-        std::cout << "Approximation Method " << methodNames[methodIdx]
-            << ": time = " << totalTimeMs << " ms, std err = "
-                << avgInvError << ", final err = " << finalInvError
-                << ", memory usage = " << memKB << " KB" << std::endl;
+        // Сохранение статистики оптимизации через геттеры
+        int diagonalSteps = nkf_local.getDiagonalSteps();
+        int sparseSteps = nkf_local.getSparseSteps();
+        int totalUpdateSteps = nkf_local.getTotalUpdateSteps();
 
-            // Запись метрик в CSV файл
+        std::cout << "Approximation Method " << methodNames[methodIdx]
+            << ": time = " << totalTimeMs << " ms, avg err = " << avgInvError
+                << ", final err = " << finalInvError
+                << ", memory usage = " << memKB << " KB"
+                << ", diagonal steps = " << diagonalSteps
+                << ", sparse steps = " << sparseSteps
+                << ", total update steps = " << totalUpdateSteps << std::endl;
+
             csvFile << methodNames[methodIdx] << ","
                 << totalTimeMs << ","
                 << avgInvError << ","
                 << finalInvError << ","
-                << memKB << std::endl;
+                << memKB << ","
+                << diagonalSteps << ","
+                << sparseSteps << ","
+                << totalUpdateSteps << std::endl;
 
-            // Сохраняем агрегированные метрики
             totalTimeVec.push_back(static_cast<double>(totalTimeMs));
             avgInvErrorVec.push_back(avgInvError);
             finalInvErrorVec.push_back(finalInvError);
             memUsageVec.push_back(memKB);
+            diagonalStepsVec.push_back(diagonalSteps);
+            sparseStepsVec.push_back(sparseSteps);
+            totalUpdateStepsVec.push_back(totalUpdateSteps);
 
-            // Построение графика динамики ошибки для данного метода NKF
             plt::figure();
             plt::plot(simTimes, nkfInvErrors, { {"label", methodNames[methodIdx]} });
-            plt::xlabel("Время (с)");
-            plt::ylabel("Ошибка обращения (‖J*S - I‖)");
-            plt::title("Динамика ошибки для NKF: " + methodNames[methodIdx]);
+            plt::xlabel("Time (s)");
+            plt::ylabel("Inversion Error (‖J*S - I‖)");
+            plt::title("Error Dynamics for NKF: " + methodNames[methodIdx]);
             plt::legend();
-            std::string plotFilename = results_dir + "inv_error_plot_" + methodNames[methodIdx] + ".png";
+            std::string plotFilename = results_dir + "/inv_error_plot_" + methodNames[methodIdx] + ".png";
             plt::save(plotFilename);
-            std::cout << "Сохранен график: " << plotFilename << std::endl;
-    } // конец цикла по NKF методам
+            std::cout << "Saved plot: " << plotFilename << std::endl;
+    }
 
     csvFile.close();
 
     /////////////////////////////////
     ///// Агрегированные графики по метрикам /////
     /////////////////////////////////
-    // Создаем вектор позиций для графиков (ось x)
     std::vector<double> positions;
     for (size_t i = 0; i < methodNames.size(); ++i) {
         positions.push_back(static_cast<double>(i));
     }
 
-    // График: Общее время симуляции (ms)
+    // Total simulation time (ms)
     plt::figure();
     plt::bar(positions, totalTimeVec);
     plt::xticks(positions, methodNames);
-    plt::xlabel("Метод");
-    plt::ylabel("Общее время (ms)");
-    plt::title("Общее время симуляции для NKF");
-    plt::save(results_dir + "total_time_bar.png");
-    std::cout << "Сохранен график общего времени: " << results_dir + "total_time_bar.png" << std::endl;
+    plt::xlabel("Method");
+    plt::ylabel("Total Time (ms)");
+    plt::title("Total Simulation Time for NKF");
+    plt::save(results_dir + "/total_time_bar.png");
+    std::cout << "Saved total time plot: " << results_dir + "/total_time_bar.png" << std::endl;
 
-    // График: Средняя ошибка обращения
+    // Average inversion error
     plt::figure();
     plt::bar(positions, avgInvErrorVec);
     plt::xticks(positions, methodNames);
-    plt::xlabel("Метод");
-    plt::ylabel("Средняя ошибка обращения");
-    plt::title("Средняя ошибка обращения для NKF");
-    plt::save(results_dir + "avg_inv_error_bar.png");
-    std::cout << "Сохранен график средней ошибки: " << results_dir + "avg_inv_error_bar.png" << std::endl;
+    plt::xlabel("Method");
+    plt::ylabel("Average Inversion Error");
+    plt::title("Average Inversion Error for NKF");
+    plt::save(results_dir + "/avg_inv_error_bar.png");
+    std::cout << "Saved average inversion error plot: " << results_dir + "/avg_inv_error_bar.png" << std::endl;
 
-    // График: Финальная ошибка обращения
+    // Final inversion error
     plt::figure();
     plt::bar(positions, finalInvErrorVec);
     plt::xticks(positions, methodNames);
-    plt::xlabel("Метод");
-    plt::ylabel("Финальная ошибка обращения");
-    plt::title("Финальная ошибка обращения для NKF");
-    plt::save(results_dir + "final_inv_error_bar.png");
-    std::cout << "Сохранен график финальной ошибки: " << results_dir + "final_inv_error_bar.png" << std::endl;
+    plt::xlabel("Method");
+    plt::ylabel("Final Inversion Error");
+    plt::title("Final Inversion Error for NKF");
+    plt::save(results_dir + "/final_inv_error_bar.png");
+    std::cout << "Saved final inversion error plot: " << results_dir + "/final_inv_error_bar.png" << std::endl;
 
-    // График: Оценка памяти (KB)
+    // Memory usage (KB)
     plt::figure();
     plt::bar(positions, memUsageVec);
     plt::xticks(positions, methodNames);
-    plt::xlabel("Метод");
-    plt::ylabel("Потребление памяти (KB)");
-    plt::title("Оценка памяти для NKF");
-    plt::save(results_dir + "mem_usage_bar.png");
-    std::cout << "Сохранен график потребления памяти: " << results_dir + "mem_usage_bar.png" << std::endl;
+    plt::xlabel("Method");
+    plt::ylabel("Memory Usage (KB)");
+    plt::title("Memory Usage for NKF");
+    plt::save(results_dir + "/mem_usage_bar.png");
+    std::cout << "Saved memory usage plot: " << results_dir + "/mem_usage_bar.png" << std::endl;
 
-    // Итоговый график траекторий (если данные собраны, этот блок можно доработать отдельно)
-    plt::figure_size(1500, 900);
-    std::map<std::string, std::string> nkf_keywords;
-    std::map<std::string, std::string> ekf_keywords;
-    std::map<std::string, std::string> ukf_keywords;
-    nkf_keywords.insert(std::pair<std::string, std::string>("label", "NKF"));
-    ekf_keywords.insert(std::pair<std::string, std::string>("label", "EKF"));
-    ukf_keywords.insert(std::pair<std::string, std::string>("label", "UKF"));
-    plt::plot(nkf_x_estimate, nkf_y_estimate, nkf_keywords);
-    plt::plot(ekf_x_estimate, ekf_y_estimate, ekf_keywords);
-    plt::plot(ukf_x_estimate, ukf_y_estimate, ukf_keywords);
-    plt::named_plot("True", x_true_vec, y_true_vec);
-    plt::legend();
-    plt::title("Траектории");
-    std::string finalPlotFilename = "C:/Users/dbezu/Desktop/MKF/Extended_MKF/results_NK/graph.png";
-    plt::save(finalPlotFilename);
-    plt::show();
-    
+    std::vector<double> diagonalPercent;
+    for (size_t i = 0; i < totalUpdateStepsVec.size(); ++i) {
+        diagonalPercent.push_back(totalUpdateStepsVec[i] > 0 ? 100.0 * diagonalStepsVec[i] / totalUpdateStepsVec[i] : 0.0);
+    }
+    plt::figure();
+    plt::bar(positions, diagonalPercent);
+    plt::xticks(positions, methodNames);
+    plt::xlabel("Method");
+    plt::ylabel("Diagonal Steps (%)");
+    plt::title("Percentage of Diagonal S in NKF");
+    plt::save(results_dir + "/diagonal_steps_bar.png");
+    std::cout << "Saved diagonal steps plot: " << results_dir + "/diagonal_steps_bar.png" << std::endl;
+
+    std::vector<double> sparsePercent;
+    for (size_t i = 0; i < totalUpdateStepsVec.size(); ++i) {
+        sparsePercent.push_back(totalUpdateStepsVec[i] > 0 ? 100.0 * sparseStepsVec[i] / totalUpdateStepsVec[i] : 0.0);
+    }
+    plt::figure();
+    plt::bar(positions, sparsePercent);
+    plt::xticks(positions, methodNames);
+    plt::xlabel("Method");
+    plt::ylabel("Sparse Steps (%)");
+    plt::title("Percentage of Sparse state_observation_cov in NKF");
+    plt::save(results_dir + "/sparse_steps_bar.png");
+    std::cout << "Saved sparse steps plot: " << results_dir + "/sparse_steps_bar.png" << std::endl;
 
     return 0;
 }
-
