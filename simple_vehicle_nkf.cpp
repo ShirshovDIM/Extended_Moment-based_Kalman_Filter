@@ -1,7 +1,11 @@
-﻿#include "filter/simple_vehicle_nkf.h"
+#include "filter/simple_vehicle_nkf.h"
 #include "distribution/two_dimensional_normal_distribution.h"
 #include "distribution/three_dimensional_normal_distribution.h"
 #include <iostream>
+#include <Eigen/Sparse>
+#include <chrono>
+
+using namespace SimpleVehicle;
 
 // Функция для аппроксимации итеративным методом Ньютона-Шульца
 Eigen::MatrixXd invertNewtonSchulz(const Eigen::MatrixXd& S, int maxIters = 10, double tol = 1e-16) {
@@ -21,7 +25,7 @@ Eigen::MatrixXd invertNewtonSchulz(const Eigen::MatrixXd& S, int maxIters = 10, 
         if (error < tol) {
             break;
         }
-        X = X * (Eigen::MatrixXd::Identity(n, n) + R); // Конкретно в нашей задаче Эквивалентно X = 2*X - X*S*X
+        X = X * (Eigen::MatrixXd::Identity(n, n) + R); // Конкретно в нашей задаче эквивалентно X = 2*X - X*S*X
     }
     return X;
 }
@@ -33,7 +37,7 @@ Eigen::MatrixXd invertBFGS(const Eigen::MatrixXd& S, int maxIters = 10, double t
     int N2 = n * n;
     Eigen::MatrixXd H = Eigen::MatrixXd::Identity(N2, N2); // приближение обратной Гессиана в векторном представлении
 
-    //  Вычисления градиента f(J) = 0.5 * ||J * S - I||²
+    // Вычисления градиента f(J) = 0.5 * ||J * S - I||²
     auto computeGrad = [&](const Eigen::MatrixXd& Jcur) -> Eigen::MatrixXd {
         Eigen::MatrixXd E = Jcur * S - Eigen::MatrixXd::Identity(n, n);
         return 2.0 * E * S.transpose();
@@ -80,10 +84,12 @@ Eigen::MatrixXd invertBFGS(const Eigen::MatrixXd& S, int maxIters = 10, double t
 
 // Функция для аппроксимации обратной матрицы по алгоритму DFP
 Eigen::MatrixXd invertDFP(const Eigen::MatrixXd& S, int maxIters = 10, double tol = 1e-6) {
+
     int n = S.rows();
     int N2 = n * n;
     Eigen::MatrixXd J = Eigen::MatrixXd::Identity(n, n);
     Eigen::MatrixXd B = Eigen::MatrixXd::Identity(N2, N2);  // приближение Гессиана
+
     auto computeGrad = [&](const Eigen::MatrixXd& Jcur) -> Eigen::MatrixXd {
         Eigen::MatrixXd E = Jcur * S - Eigen::MatrixXd::Identity(n, n);
         return 2.0 * E * S.transpose();
@@ -135,6 +141,7 @@ Eigen::MatrixXd invertLBFGS(const Eigen::MatrixXd& S, int maxIters = 10, double 
     int n = S.rows();
     int N2 = n * n;
     Eigen::MatrixXd J = Eigen::MatrixXd::Identity(n, n);
+
     auto computeGrad = [&](const Eigen::MatrixXd& Jcur) -> Eigen::MatrixXd {
         Eigen::MatrixXd E = Jcur * S - Eigen::MatrixXd::Identity(n, n);
         return 2.0 * E * S.transpose();
@@ -202,17 +209,17 @@ Eigen::MatrixXd invertLBFGS(const Eigen::MatrixXd& S, int maxIters = 10, double 
     return J;
 }
 
-using namespace SimpleVehicle;
-
-SimpleVehicleNKF::SimpleVehicleNKF()
-{
+SimpleVehicleNKF::SimpleVehicleNKF() {
     vehicle_model_ = SimpleVehicleModel();
+    // Инициализация счетчиков
+    diagonal_steps_ = 0;
+    sparse_steps_ = 0;
+    total_update_steps_ = 0;
 }
 
 StateInfo SimpleVehicleNKF::predict(const StateInfo& state_info,
     const Eigen::Vector2d& control_inputs,
-    const std::map<int, std::shared_ptr<BaseDistribution>>& noise_map)
-{
+    const std::map<int, std::shared_ptr<BaseDistribution>>& noise_map) {
     // Step1. Approximate to Gaussian Distribution
     const auto state_mean = state_info.mean;
     const auto state_cov = state_info.covariance;
@@ -285,8 +292,10 @@ StateInfo SimpleVehicleNKF::predict(const StateInfo& state_info,
 StateInfo SimpleVehicleNKF::update(const StateInfo& state_info,
     const Eigen::Vector2d& observed_values,
     const Eigen::Vector2d& landmark,
-    const std::map<int, std::shared_ptr<BaseDistribution>>& noise_map)
-{
+    const std::map<int, std::shared_ptr<BaseDistribution>>& noise_map) {
+    // Измерение времени выполнения
+    auto start = std::chrono::high_resolution_clock::now();
+
     const auto predicted_mean = state_info.mean;
     const auto predicted_cov = state_info.covariance;
 
@@ -381,14 +390,12 @@ StateInfo SimpleVehicleNKF::update(const StateInfo& state_info,
     state_observation_cov(STATE::IDX::X, OBSERVATION::IDX::RSIN)
         = wrPow1 * cwaPow1 * xPow1_saPow1 + wrPow1 * swaPow1 * xPow1_caPow1
         - predicted_mean(STATE::IDX::X) * observation_mean(OBSERVATION::IDX::RSIN);
-
     state_observation_cov(STATE::IDX::Y, OBSERVATION::IDX::RCOS)
         = wrPow1 * cwaPow1 * yPow1_caPow1 - wrPow1 * swaPow1 * yPow1_saPow1
         - predicted_mean(STATE::IDX::Y) * observation_mean(OBSERVATION::IDX::RCOS);
     state_observation_cov(STATE::IDX::Y, OBSERVATION::IDX::RSIN)
         = wrPow1 * cwaPow1 * yPow1_saPow1 + wrPow1 * swaPow1 * yPow1_caPow1
         - predicted_mean(STATE::IDX::Y) * observation_mean(OBSERVATION::IDX::RSIN);
-
     state_observation_cov(STATE::IDX::YAW, OBSERVATION::IDX::RCOS)
         = wrPow1 * cwaPow1 * yawPow1_caPow1 - wrPow1 * swaPow1 * yawPow1_saPow1
         - predicted_mean(STATE::IDX::YAW) * observation_mean(OBSERVATION::IDX::RCOS);
@@ -396,46 +403,121 @@ StateInfo SimpleVehicleNKF::update(const StateInfo& state_info,
         = wrPow1 * cwaPow1 * yawPow1_saPow1 + wrPow1 * swaPow1 * yawPow1_caPow1
         - predicted_mean(STATE::IDX::YAW) * observation_mean(OBSERVATION::IDX::RSIN);
 
-    // Вместо прямого inverse() вычислим обратную матрицу через выбранный алгоритм
+
     Eigen::MatrixXd S = observation_cov;  // S – матрица наблюдений (covariance)
     Eigen::MatrixXd S_inv;
+    Eigen::MatrixXd K(3, 2);
+    last_S_ = S;
+    ++total_update_steps_; // Увеличиваем счетчик обновлений
+
+
     switch (inv_method_) {
-    case SimpleVehicleNKF::InversionMethod::NEWTON_SCHULZ:
+    case InversionMethod::NEWTON_SCHULZ:
         S_inv = invertNewtonSchulz(S);
-        //std::cout << "[NKF] Newton-Schultz" << std::endl;
         break;
-    case SimpleVehicleNKF::InversionMethod::DIRECT:
+    case InversionMethod::DIRECT:
         S_inv = S.inverse();
-        //std::cout << "[NKF] DIRECT (S.inverse())" << std::endl;
         break;
-    case SimpleVehicleNKF::InversionMethod::BFGS:
+    case InversionMethod::BFGS:
         S_inv = invertBFGS(S);
-        //std::cout << "[NKF] BFGS" << std::endl;
         break;
-    case SimpleVehicleNKF::InversionMethod::DFP:
+    case InversionMethod::DFP:
         S_inv = invertDFP(S);
-        //std::cout << "[NKF] DFP" << std::endl;
         break;
-    case SimpleVehicleNKF::InversionMethod::LBFGS:
+    case InversionMethod::LBFGS:
         S_inv = invertLBFGS(S);
-        //std::cout << "[NKF] LBFGS" << std::endl;
         break;
     default:
         S_inv = S.inverse();
         std::cout << "[NKF] Approximation regime has not been recognized; used DIRECT as default" << std::endl;
     }
-    // делаем логи матриц и ошибки апроксимации
-    last_S_ = S;
+
+
+    Eigen::MatrixXd K_standard = state_observation_cov * S_inv;
+
+
+    bool is_diagonal = (std::abs(S(0, 1)) < diagonal_threshold_ && std::abs(S(1, 0)) < diagonal_threshold_);
+
+    typedef Eigen::Triplet<double> T;
+    std::vector<T> triplet_list;
+    for (int i = 0; i < state_observation_cov.rows(); ++i) {
+        for (int j = 0; j < state_observation_cov.cols(); ++j) {
+            if (std::abs(state_observation_cov(i, j)) >= sparsity_threshold_) {
+                triplet_list.push_back(T(i, j, state_observation_cov(i, j)));
+            }
+        }
+    }
+    Eigen::SparseMatrix<double> sparse_state_observation_cov(3, 2);
+    sparse_state_observation_cov.setFromTriplets(triplet_list.begin(), triplet_list.end());
+    sparse_state_observation_cov.makeCompressed();
+    bool is_sparse = (triplet_list.size() < state_observation_cov.size());
+
+
+    std::cout << "[DEBUG] Sparse state_observation_cov non-zeros:\n";
+    for (int k = 0; k < sparse_state_observation_cov.outerSize(); ++k) {
+        for (Eigen::SparseMatrix<double>::InnerIterator it(sparse_state_observation_cov, k); it; ++it) {
+            std::cout << " (" << it.row() << "," << it.col() << ") = " << it.value() << std::endl;
+        }
+    }
+
+    if (is_diagonal && is_sparse) {
+        Eigen::Vector2d S_inv_diag;
+        S_inv_diag(0) = S_inv(0, 0); 
+        S_inv_diag(1) = S_inv(1, 1);
+
+        K.setZero();
+        for (int k = 0; k < sparse_state_observation_cov.outerSize(); ++k) {
+            for (Eigen::SparseMatrix<double>::InnerIterator it(sparse_state_observation_cov, k); it; ++it) {
+                int row = it.row();
+                int col = it.col();
+                K(row, col) = it.value() * S_inv_diag(col);
+            }
+        }
+
+        K = K_standard;
+
+        ++diagonal_steps_;
+        ++sparse_steps_;
+    }
+    else if (is_diagonal) {
+        Eigen::Vector2d S_inv_diag;
+        S_inv_diag(0) = S_inv(0, 0);
+        S_inv_diag(1) = S_inv(1, 1);
+
+        K.setZero();
+        for (int i = 0; i < state_observation_cov.rows(); ++i) {
+            for (int j = 0; j < state_observation_cov.cols(); ++j) {
+                K(i, j) = state_observation_cov(i, j) * S_inv_diag(j);
+            }
+        }
+
+        K = K_standard;
+
+        ++diagonal_steps_;
+    }
+    else {
+        K = K_standard;
+        if (is_sparse) ++sparse_steps_;
+    }
+
+    std::cout << "[DEBUG] Kalman Gain K:\n" << K << std::endl;
+
+    // Логирование матриц и ошибки аппроксимации
     last_S_inv_ = S_inv;
     Eigen::MatrixXd I_n = Eigen::MatrixXd::Identity(S.rows(), S.cols());
     last_inv_error_ = (S_inv * S - I_n).norm();
 
-    // Kalman Gain с использованием аппроксимированной обратной матрицы S_inv
-    const auto K = state_observation_cov * S_inv;
-
+    // Обновление состояния
     StateInfo updated_info;
     updated_info.mean = predicted_mean + K * (observed_values - observation_mean);
     updated_info.covariance = predicted_cov - K * observation_cov * K.transpose();
+    std::cout << "[DEBUG] Updated mean:\n" << updated_info.mean << std::endl;
+    std::cout << "[DEBUG] Updated covariance:\n" << updated_info.covariance << std::endl;
+    std::cout << "[DEBUG] Total updates: " << total_update_steps_
+        << ", Diagonal steps: " << diagonal_steps_
+        << ", Sparse steps: " << sparse_steps_ << std::endl;
+    std::cout << "[DEBUG] Update took " << std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::high_resolution_clock::now() - start).count() << " microseconds" << std::endl;
 
     return updated_info;
 }

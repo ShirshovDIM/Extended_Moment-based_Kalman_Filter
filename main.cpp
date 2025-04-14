@@ -6,6 +6,7 @@
 #include <fstream>
 #include <filesystem>
 #include <algorithm>
+#include <chrono>
 
 #include "matplotlibcpp.h"
 #include "distribution/uniform_distribution.h"
@@ -18,10 +19,12 @@
 #include "scenario/simple_vehicle_scenario.h"
 
 using namespace SimpleVehicle;
+namespace plt = matplotlibcpp;
 
 struct LandMark {
     LandMark(const double _x, const double _y, const double _std_x, const double _std_y)
-        : x(_x), y(_y), std_x(_std_x), std_y(_std_y) { }
+        : x(_x), y(_y), std_x(_std_x), std_y(_std_y) {
+    }
     double x;
     double y;
     double std_x;
@@ -49,14 +52,14 @@ int main() {
     barcode_map.insert(std::make_pair(7, 19));
     barcode_map.insert(std::make_pair(63, 20));
 
+    // Чтение файла с информацией по маякам
     std::map<size_t, LandMark> landmark_map;
-
-    std::ifstream landmark_file("C:/Users/dbezu/Desktop/MKF/MKF/data/MRCLAM_Dataset1/Landmark_Groundtruth.dat");
-    if(landmark_file.fail()) {
-        std::cout << "Failed to Open the landmark truth file" << std::endl;
-        return -1;
-    }
     {
+        std::ifstream landmark_file("C:/Users/dbezu/Desktop/MKF/Extended_MKF/data/MRCLAM_Dataset1/Landmark_Groundtruth.dat");
+        if (landmark_file.fail()) {
+            std::cout << "Failed to Open the landmark truth file" << std::endl;
+            return -1;
+        }
         size_t id;
         double x, y, std_x, std_y;
         landmark_file >> id >> x >> y >> std_x >> std_y;
@@ -67,18 +70,18 @@ int main() {
         landmark_file.close();
     }
 
-    // Reading files
-    const std::string odometry_filename = "C:/Users/dbezu/Desktop/MKF/MKF/data/MRCLAM_Dataset1/Robot" + std::to_string(robot_num) + "_Odometry.dat";
-
-    std::ifstream odometry_file(odometry_filename);
-    if (odometry_file.fail()) {
-        std::cout << "Failed to Open the odometry file" << std::endl;
-        return -1;
-    }
+    // Чтение одометрии
     std::vector<double> odometry_time;
     std::vector<double> odometry_v;
     std::vector<double> odometry_w;
     {
+
+        std::string odometry_filename = "C:/Users/dbezu/Desktop/MKF/Extended_MKF/data/MRCLAM_Dataset1/Robot" + std::to_string(robot_num) + "_Odometry.dat";
+        std::ifstream odometry_file(odometry_filename);
+        if (odometry_file.fail()) {
+            std::cout << "Failed to Open the odometry file" << std::endl;
+            return -1;
+        }
         double time, v, w;
         odometry_file >> time >> v >> w;
         while (!odometry_file.eof()) {
@@ -94,18 +97,18 @@ int main() {
         odometry_time.at(i) -= base_time;
     }
 
-    const std::string ground_truth_filename = "C:/Users/dbezu/Desktop/MKF/MKF/data/MRCLAM_Dataset1/Robot" + std::to_string(robot_num) + "_Groundtruth.dat";
-
-    std::ifstream ground_truth_file(ground_truth_filename);
-    if (ground_truth_file.fail()) {
-        std::cout << "Failed to Open the ground truth file" << std::endl;
-        return -1;
-    }
+    // Чтение ground truth
     std::vector<double> ground_truth_time;
     std::vector<double> ground_truth_x;
     std::vector<double> ground_truth_y;
     std::vector<double> ground_truth_yaw;
     {
+        std::string ground_truth_filename = "C:/Users/dbezu/Desktop/MKF/Extended_MKF/data/MRCLAM_Dataset1/Robot" + std::to_string(robot_num) + "_Groundtruth.dat";
+        std::ifstream ground_truth_file(ground_truth_filename);
+        if (ground_truth_file.fail()) {
+            std::cout << "Failed to Open the ground truth file" << std::endl;
+            return -1;
+        }
         double time, x, y, yaw;
         ground_truth_file >> time >> x >> y >> yaw;
         while (!ground_truth_file.eof()) {
@@ -122,23 +125,24 @@ int main() {
         ground_truth_file.close();
     }
 
-    const std::string measurement_filename = "C:/Users/dbezu/Desktop/MKF/MKF/data/MRCLAM_Dataset1/Robot" + std::to_string(robot_num) + "_Measurement.dat";
-
-    std::ifstream measurement_file(measurement_filename);
-    if (measurement_file.fail()) {
-        std::cout << "Failed to Open the measurement file" << std::endl;
-        return -1;
-    }
+    // Чтение измерений
     std::vector<double> measurement_time;
     std::vector<size_t> measurement_subject;
     std::vector<double> measurement_range;
     std::vector<double> measurement_bearing;
     {
+        std::string measurement_filename = "C:/Users/dbezu/Desktop/MKF/Extended_MKF/data/MRCLAM_Dataset1/Robot" + std::to_string(robot_num) + "_Measurement.dat";
+        std::ifstream measurement_file(measurement_filename);
+        if (measurement_file.fail()) {
+            std::cout << "Failed to Open the measurement file" << std::endl;
+            return -1;
+        }
         double time, range, bearing;
         int id;
         measurement_file >> time >> id >> range >> bearing;
         while (!measurement_file.eof()) {
-            if (id == 5 || id == 14 || id == 41 || id == 32 || id == 23 || id == 18 || id == 61 || time - base_time < 0.0) {
+            if (id == 5 || id == 14 || id == 41 || id == 32 || id == 23 ||
+                id == 18 || id == 61 || time - base_time < 0.0) {
                 measurement_file >> time >> id >> range >> bearing;
                 continue;
             }
@@ -155,10 +159,9 @@ int main() {
     ///// Настройка фильтров /////////
     /////////////////////////////////
     SimpleVehicleGaussianScenario scenario;
-
     SimpleVehicleEKF ekf;
     SimpleVehicleUKF ukf;
-    SimpleVehicleNKF nkf;
+    const auto measurement_noise_map = scenario.observation_noise_map_;
 
     // Внешние возмущения
     const double mean_wv = 0.0;
@@ -166,242 +169,288 @@ int main() {
     const double mean_wu = 0.0;
     const double cov_wu = std::pow(1.0, 2);
 
-    // Шум наблюдений
-    const auto measurement_noise_map = scenario.observation_noise_map_;
+    /////////////////////////////////
+    ///// Подготовка логирования и CSV /////
+    /////////////////////////////////
 
-    StateInfo nkf_state_info;
-    nkf_state_info.mean = { ground_truth_x.front(), ground_truth_y.front(), ground_truth_yaw.front() };
-    nkf_state_info.covariance = scenario.ini_cov_;
-    auto ekf_state_info = nkf_state_info;
-    auto ukf_state_info = nkf_state_info;
+    std::string results_dir = "D:/Optimization/Extended_MKF-shirshov_dev/new_plots";
+    std::filesystem::create_directories(results_dir);
+    std::ofstream csvFile(results_dir + "/metrics_log.csv");
+    csvFile << "Method,TotalTime_ms,AvgInvError,FinalInvError,ApproxMemUsage_KB,DiagonalSteps,SparseSteps,TotalUpdateSteps" << std::endl;
+    std::vector<SimpleVehicleNKF::InversionMethod> inversionMethods = {
+        SimpleVehicleNKF::InversionMethod::DIRECT,
+        SimpleVehicleNKF::InversionMethod::BFGS,
+        SimpleVehicleNKF::InversionMethod::DFP,
+        SimpleVehicleNKF::InversionMethod::LBFGS,
+        SimpleVehicleNKF::InversionMethod::NEWTON_SCHULZ
+    };
+    std::vector<std::string> methodNames = { "DIRECT", "BFGS", "DFP", "LBFGS", "NEWTON_SCHULZ" };
+    std::vector<double> totalTimeVec;
+    std::vector<double> avgInvErrorVec;
+    std::vector<double> finalInvErrorVec;
+    std::vector<double> memUsageVec;
+    std::vector<int> diagonalStepsVec;
+    std::vector<int> sparseStepsVec;
+    std::vector<int> totalUpdateStepsVec;
 
-    ////////////////////////////////////////////////////
-    // Начало симуляции
-    ////////////////////////////////////////////////////
-    std::vector<double> times;
-    std::vector<double> ekf_xy_errors;
-    std::vector<double> ekf_yaw_errors;
-    std::vector<double> ukf_xy_errors;
-    std::vector<double> ukf_yaw_errors;
-    std::vector<double> nkf_xy_errors;
-    std::vector<double> nkf_yaw_errors;
-    std::vector<double> x_true_vec;
-    std::vector<double> y_true_vec;
-    std::vector<double> yaw_true_vec;
-    std::vector<double> nkf_x_estimate;
-    std::vector<double> nkf_y_estimate;
-    std::vector<double> nkf_yaw_estimate;
-    std::vector<double> ekf_x_estimate;
-    std::vector<double> ekf_y_estimate;
-    std::vector<double> ekf_yaw_estimate;
-    std::vector<double> ukf_x_estimate;
-    std::vector<double> ukf_y_estimate;
-    std::vector<double> ukf_yaw_estimate;
 
-    size_t measurement_id = 0;
-    size_t ground_truth_id = 0;
-    for (size_t odo_id = 0; odo_id < 20000; ++odo_id) {
-        double current_time = odometry_time.at(odo_id);
-        const double next_time = odometry_time.at(odo_id + 1);
+    /////////////////////////////////
+    ///// Симуляция для NKF с разными методами /////
+    /////////////////////////////////
+    for (size_t methodIdx = 0; methodIdx < inversionMethods.size(); ++methodIdx) {
+        std::cout << "=== Executing experiment for NKF with the following method - " << methodNames[methodIdx] << " ===" << std::endl;
 
-        // Обработка измерений
-        if (measurement_id < measurement_time.size() && next_time - measurement_time.at(measurement_id) > 0.0) {
-            while (measurement_id < measurement_time.size()) {
-                if (next_time - measurement_time.at(measurement_id) < 0.0)
-                    break;
+        SimpleVehicleNKF nkf_local;
+        nkf_local.setInversionMethod(inversionMethods[methodIdx]);
+        // Настройка параметров оптимизации
+        nkf_local.setDiagonalThreshold(1e-6);
+        nkf_local.setSparsityThreshold(1e-6);
+        nkf_local.setUseSparseOptimization(true);
+      
+        StateInfo nkf_state_info_local;
+        nkf_state_info_local.mean = { ground_truth_x.front(), ground_truth_y.front(), ground_truth_yaw.front() };
+        nkf_state_info_local.covariance = scenario.ini_cov_;
 
-                const double dt = measurement_time.at(measurement_id) - current_time;
-                // Предсказание до времени измерения
-                if (dt > 1e-5) {
-                    const Eigen::Vector2d inputs = { odometry_v.at(odo_id) * dt, odometry_w.at(odo_id) * dt };
+        size_t measurement_id = 0;
+        size_t ground_truth_id = 0;
+
+        double sumInvError = 0.0;
+        int updateCount = 0;
+        std::vector<double> simTimes;
+        std::vector<double> nkfInvErrors;
+
+        auto startTime = std::chrono::high_resolution_clock::now();
+
+        for (size_t odo_id = 0; odo_id < 20000; ++odo_id) {
+            double current_time = odometry_time.at(odo_id);
+            const double next_time = odometry_time.at(odo_id + 1);
+
+            // Обработка измерений
+            if (measurement_id < measurement_time.size() && next_time - measurement_time.at(measurement_id) > 0.0) {
+                while (measurement_id < measurement_time.size()) {
+                    if (next_time - measurement_time.at(measurement_id) < 0.0)
+                        break;
+                    const double dt = measurement_time.at(measurement_id) - current_time;
+
+                    if (dt > 1e-5) {
+                        const Eigen::Vector2d inputs = { odometry_v.at(odo_id) * dt, odometry_w.at(odo_id) * dt };
+                        const std::map<int, std::shared_ptr<BaseDistribution>> system_noise_map = {
+                            { SYSTEM_NOISE::IDX::WV, std::make_shared<NormalDistribution>(mean_wv * dt, cov_wv * dt * dt) },
+                            { SYSTEM_NOISE::IDX::WU, std::make_shared<NormalDistribution>(mean_wu * dt, cov_wu * dt * dt) }
+                        };
+                        nkf_state_info_local = nkf_local.predict(nkf_state_info_local, inputs, system_noise_map);
+                    }
+
+                    const Eigen::Vector2d meas = { measurement_range[measurement_id], measurement_bearing[measurement_id] };
+                    const Eigen::Vector2d y = { meas(0) * std::cos(meas(1)), meas(0) * std::sin(meas(1)) };
+                    const auto landmark = landmark_map.at(measurement_subject.at(measurement_id));
+                    const double updated_dt = std::max(1e-5, dt);
                     const std::map<int, std::shared_ptr<BaseDistribution>> system_noise_map = {
-                        { SYSTEM_NOISE::IDX::WV, std::make_shared<NormalDistribution>(mean_wv * dt, cov_wv * dt * dt) },
-                        { SYSTEM_NOISE::IDX::WU, std::make_shared<NormalDistribution>(mean_wu * dt, cov_wu * dt * dt) }
+                        { SYSTEM_NOISE::IDX::WV, std::make_shared<NormalDistribution>(mean_wv * updated_dt, cov_wv * updated_dt * updated_dt) },
+                        { SYSTEM_NOISE::IDX::WU, std::make_shared<NormalDistribution>(mean_wu * updated_dt, cov_wu * updated_dt * updated_dt) }
                     };
-                    ekf_state_info = ekf.predict(ekf_state_info, inputs, dt, system_noise_map);
-                    ukf_state_info = ukf.predict(ukf_state_info, inputs, system_noise_map, measurement_noise_map);
-                    nkf_state_info = nkf.predict(nkf_state_info, inputs, system_noise_map);
+                    nkf_state_info_local = nkf_local.update(nkf_state_info_local, y, { landmark.x, landmark.y }, measurement_noise_map);
+
+                    current_time = measurement_time.at(measurement_id);
+                    ++measurement_id;
+
+
+                    double curInvError = nkf_local.last_inv_error_;
+                    sumInvError += curInvError;
+                    ++updateCount;
+                    simTimes.push_back(current_time);
+                    nkfInvErrors.push_back(curInvError);
                 }
-
-                // Обновление с измерением
-                const Eigen::Vector2d meas = { measurement_range[measurement_id], measurement_bearing[measurement_id] };
-                const Eigen::Vector2d y = { meas(0) * std::cos(meas(1)), meas(0) * std::sin(meas(1)) };
-                const auto landmark = landmark_map.at(measurement_subject.at(measurement_id));
-                const double updated_dt = std::max(1e-5, dt);
-                const std::map<int, std::shared_ptr<BaseDistribution>> system_noise_map = {
-                    { SYSTEM_NOISE::IDX::WV, std::make_shared<NormalDistribution>(mean_wv * updated_dt, cov_wv * updated_dt * updated_dt) },
-                    { SYSTEM_NOISE::IDX::WU, std::make_shared<NormalDistribution>(mean_wu * updated_dt, cov_wu * updated_dt * updated_dt) }
-                };
-                ekf_state_info = ekf.update(ekf_state_info, y, { landmark.x, landmark.y }, measurement_noise_map);
-                ukf_state_info = ukf.update(ukf_state_info, y, { landmark.x, landmark.y }, system_noise_map, measurement_noise_map);
-                nkf_state_info = nkf.update(nkf_state_info, y, { landmark.x, landmark.y }, measurement_noise_map);
-
-                current_time = measurement_time.at(measurement_id);
-                ++measurement_id;
+                if (measurement_id == measurement_time.size())
+                    break;
             }
-            if (measurement_id == measurement_time.size())
-                break;
-        }
 
-        // Предсказание до ground truth
-        while (ground_truth_time.at(ground_truth_id) < current_time && ground_truth_time.at(ground_truth_id) < next_time)
-            ++ground_truth_id;
-        if (current_time < ground_truth_time.at(ground_truth_id) && ground_truth_time.at(ground_truth_id) < next_time) {
-            while (true) {
-                if (next_time < ground_truth_time.at(ground_truth_id))
-                    break;
-                const double dt = ground_truth_time.at(ground_truth_id) - current_time;
-                if (dt > 1e-5) {
-                    const Eigen::Vector2d inputs = { odometry_v.at(odo_id) * dt, odometry_w.at(odo_id) * dt };
-                    const std::map<int, std::shared_ptr<BaseDistribution>> system_noise_map = {
-                        { SYSTEM_NOISE::IDX::WV, std::make_shared<NormalDistribution>(mean_wv * dt, cov_wv * dt * dt) },
-                        { SYSTEM_NOISE::IDX::WU, std::make_shared<NormalDistribution>(mean_wu * dt, cov_wu * dt * dt) }
-                    };
-                    ekf_state_info = ekf.predict(ekf_state_info, inputs, dt, system_noise_map);
-                    ukf_state_info = ukf.predict(ukf_state_info, inputs, system_noise_map, measurement_noise_map);
-                    nkf_state_info = nkf.predict(nkf_state_info, inputs, system_noise_map);
-                }
-                // Сохранение текущих данных для сравнения
-                times.push_back(current_time);
-                const double true_x = ground_truth_x.at(ground_truth_id);
-                const double true_y = ground_truth_y.at(ground_truth_id);
-                const double true_yaw = ground_truth_yaw.at(ground_truth_id);
-                x_true_vec.push_back(true_x);
-                y_true_vec.push_back(true_y);
-                yaw_true_vec.push_back(true_yaw);
 
-                // EKF
-                {
-                    const double dx = true_x - ekf_state_info.mean(0);
-                    const double dy = true_y - ekf_state_info.mean(1);
-                    const double xy_error = std::hypot(dx, dy);
-                    const double dyaw = std::fabs(normalizeRadian(true_yaw - ekf_state_info.mean(2)));
-                    ekf_xy_errors.push_back(xy_error);
-                    ekf_yaw_errors.push_back(dyaw);
-                    ekf_x_estimate.push_back(ekf_state_info.mean(0));
-                    ekf_y_estimate.push_back(ekf_state_info.mean(1));
-                    ekf_yaw_estimate.push_back(ekf_state_info.mean(2));
-                    std::cout << "ekf_xy_error: " << xy_error << std::endl;
-                    std::cout << "ekf_yaw_error: " << dyaw << std::endl;
-                }
-                // UKF
-                {
-                    const double dx = true_x - ukf_state_info.mean(0);
-                    const double dy = true_y - ukf_state_info.mean(1);
-                    const double xy_error = std::hypot(dx, dy);
-                    const double dyaw = std::fabs(normalizeRadian(true_yaw - ukf_state_info.mean(2)));
-                    ukf_xy_errors.push_back(xy_error);
-                    ukf_yaw_errors.push_back(dyaw);
-                    ukf_x_estimate.push_back(ukf_state_info.mean(0));
-                    ukf_y_estimate.push_back(ukf_state_info.mean(1));
-                    ukf_yaw_estimate.push_back(ukf_state_info.mean(2));
-                    std::cout << "ukf_xy_error: " << xy_error << std::endl;
-                    std::cout << "ukf_yaw_error: " << dyaw << std::endl;
-                }
-                // NKF
-                {
-                    const double dx = true_x - nkf_state_info.mean(0);
-                    const double dy = true_y - nkf_state_info.mean(1);
-                    const double xy_error = std::hypot(dx, dy);
-                    const double dyaw = std::fabs(normalizeRadian(true_yaw - nkf_state_info.mean(2)));
-                    nkf_xy_errors.push_back(xy_error);
-                    nkf_yaw_errors.push_back(dyaw);
-                    nkf_x_estimate.push_back(nkf_state_info.mean(0));
-                    nkf_y_estimate.push_back(nkf_state_info.mean(1));
-                    nkf_yaw_estimate.push_back(nkf_state_info.mean(2));
-                    std::cout << "nkf_xy_error: " << xy_error << std::endl;
-                    std::cout << "nkf_yaw_error: " << dyaw << std::endl;
-                    std::cout << "-----------------------" << std::endl;
-                }
-                current_time = ground_truth_time.at(ground_truth_id);
+            while (ground_truth_time.at(ground_truth_id) < current_time && ground_truth_time.at(ground_truth_id) < next_time)
                 ++ground_truth_id;
+            if (current_time < ground_truth_time.at(ground_truth_id) && ground_truth_time.at(ground_truth_id) < next_time) {
+                while (true) {
+                    if (next_time < ground_truth_time.at(ground_truth_id))
+                        break;
+                    const double dt = ground_truth_time.at(ground_truth_id) - current_time;
+                    if (dt > 1e-5) {
+                        const Eigen::Vector2d inputs = { odometry_v.at(odo_id) * dt, odometry_w.at(odo_id) * dt };
+                        const std::map<int, std::shared_ptr<BaseDistribution>> system_noise_map = {
+                            { SYSTEM_NOISE::IDX::WV, std::make_shared<NormalDistribution>(mean_wv * dt, cov_wv * dt * dt) },
+                            { SYSTEM_NOISE::IDX::WU, std::make_shared<NormalDistribution>(mean_wu * dt, cov_wu * dt * dt) }
+                        };
+                        nkf_state_info_local = nkf_local.predict(nkf_state_info_local, inputs, system_noise_map);
+                    }
+                    current_time = ground_truth_time.at(ground_truth_id);
+                    ++ground_truth_id;
+                }
             }
-        }
-        // Предсказание до следующего времени
-        const double dt = next_time - current_time;
-        if (dt > 1e-5) {
-            const Eigen::Vector2d inputs = { odometry_v.at(odo_id) * dt, odometry_w.at(odo_id) * dt };
-            const std::map<int, std::shared_ptr<BaseDistribution>> system_noise_map = {
-                { SYSTEM_NOISE::IDX::WV, std::make_shared<NormalDistribution>(mean_wv * dt, cov_wv * dt * dt) },
-                { SYSTEM_NOISE::IDX::WU, std::make_shared<NormalDistribution>(mean_wu * dt, cov_wu * dt * dt) }
-            };
-            ekf_state_info = ekf.predict(ekf_state_info, inputs, dt, system_noise_map);
-            ukf_state_info = ukf.predict(ukf_state_info, inputs, system_noise_map, measurement_noise_map);
-            nkf_state_info = nkf.predict(nkf_state_info, inputs, system_noise_map);
-        }
-    }
-
-    double nkf_xy_error_sum = 0.0;
-    double ekf_xy_error_sum = 0.0;
-    double ukf_xy_error_sum = 0.0;
-    double nkf_yaw_error_sum = 0.0;
-    double ekf_yaw_error_sum = 0.0;
-    double ukf_yaw_error_sum = 0.0;
-    for (size_t i = 0; i < ukf_xy_errors.size(); ++i) {
-        nkf_xy_error_sum += nkf_xy_errors.at(i);
-        ekf_xy_error_sum += ekf_xy_errors.at(i);
-        ukf_xy_error_sum += ukf_xy_errors.at(i);
-        nkf_yaw_error_sum += nkf_yaw_errors.at(i);
-        ekf_yaw_error_sum += ekf_yaw_errors.at(i);
-        ukf_yaw_error_sum += ukf_yaw_errors.at(i);
-    }
-
-     //Output data to file
-    {
-        std::string parent_dir = "C:/Users/dbezu/Desktop/MKF/MKF/results";
-        for(const auto& p : std::filesystem::directory_iterator("../result/"))
-        {
-            const auto abs_p = std::filesystem::canonical(p);
-            const auto flag_find = abs_p.string().find("data");
-            if(flag_find != std::string::npos) {
-                parent_dir = abs_p.string();
+            // Предсказание до следующего времени
+            const double dt = next_time - current_time;
+            if (dt > 1e-5) {
+                const Eigen::Vector2d inputs = { odometry_v.at(odo_id) * dt, odometry_w.at(odo_id) * dt };
+                const std::map<int, std::shared_ptr<BaseDistribution>> system_noise_map = {
+                    { SYSTEM_NOISE::IDX::WV, std::make_shared<NormalDistribution>(mean_wv * dt, cov_wv * dt * dt) },
+                    { SYSTEM_NOISE::IDX::WU, std::make_shared<NormalDistribution>(mean_wu * dt, cov_wu * dt * dt) }
+                };
+                nkf_state_info_local = nkf_local.predict(nkf_state_info_local, inputs, system_noise_map);
             }
+        } // конец цикла по одометрии
+
+        auto endTime = std::chrono::high_resolution_clock::now();
+        long totalTimeMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+        double avgInvError = (updateCount > 0 ? sumInvError / updateCount : 0.0);
+        double finalInvError = (nkfInvErrors.empty() ? 0.0 : nkfInvErrors.back());
+
+        // Оценка использования памяти (приблизительно)
+        int n = nkf_local.last_S_.rows();
+        double memBytes = 0.0;
+        if (inversionMethods[methodIdx] == SimpleVehicleNKF::InversionMethod::DIRECT) {
+            memBytes = n * n * sizeof(double); // n^2 - только исходная матрица - наиболее оптимальный по памяти вариант
         }
-        parent_dir += "/robot" + std::to_string(robot_num);
-        std::filesystem::create_directories(parent_dir);
-        const std::string filename = parent_dir + scenario.filename_;
-        outputResultToFile(filename, times,
-                           x_true_vec, y_true_vec, yaw_true_vec,
-                           nkf_x_estimate, nkf_y_estimate, nkf_yaw_estimate,
-                           ekf_x_estimate, ekf_y_estimate, ekf_yaw_estimate,
-                           ukf_x_estimate, ukf_y_estimate, ukf_yaw_estimate,
-                           nkf_xy_errors, nkf_yaw_errors,
-                           ekf_xy_errors, ekf_yaw_errors,
-                           ukf_xy_errors, ukf_yaw_errors);
+
+        auto endTime = std::chrono::high_resolution_clock::now();
+        long totalTimeMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+        double avgInvError = (updateCount > 0 ? sumInvError / updateCount : 0.0);
+        double finalInvError = (nkfInvErrors.empty() ? 0.0 : nkfInvErrors.back());
+
+        // Оценка использования памяти (приблизительно)
+        int n = nkf_local.last_S_.rows();
+        double memBytes = 0.0;
+        if (inversionMethods[methodIdx] == SimpleVehicleNKF::InversionMethod::DIRECT) {
+            memBytes = n * n * sizeof(double);
+        }
+        else if (inversionMethods[methodIdx] == SimpleVehicleNKF::InversionMethod::BFGS ||
+            inversionMethods[methodIdx] == SimpleVehicleNKF::InversionMethod::DFP) {
+            double N2 = n * n;
+            memBytes = N2 * N2 * sizeof(double);
+        }
+        else if (inversionMethods[methodIdx] == SimpleVehicleNKF::InversionMethod::LBFGS) {
+            double N2 = n * n;
+            int m = 5;
+            memBytes = 2 * m * N2 * sizeof(double);
+        }
+        else if (inversionMethods[methodIdx] == SimpleVehicleNKF::InversionMethod::NEWTON_SCHULZ) {
+            memBytes = 2 * n * n * sizeof(double);
+        }
+        double memKB = memBytes / 1024.0;
+
+        // Сохранение статистики оптимизации через геттеры
+        int diagonalSteps = nkf_local.getDiagonalSteps();
+        int sparseSteps = nkf_local.getSparseSteps();
+        int totalUpdateSteps = nkf_local.getTotalUpdateSteps();
+
+        std::cout << "Approximation Method " << methodNames[methodIdx]
+            << ": time = " << totalTimeMs << " ms, avg err = " << avgInvError
+                << ", final err = " << finalInvError
+                << ", memory usage = " << memKB << " KB"
+                << ", diagonal steps = " << diagonalSteps
+                << ", sparse steps = " << sparseSteps
+                << ", total update steps = " << totalUpdateSteps << std::endl;
+
+            csvFile << methodNames[methodIdx] << ","
+                << totalTimeMs << ","
+                << avgInvError << ","
+                << finalInvError << ","
+                << memKB << ","
+                << diagonalSteps << ","
+                << sparseSteps << ","
+                << totalUpdateSteps << std::endl;
+
+            totalTimeVec.push_back(static_cast<double>(totalTimeMs));
+            avgInvErrorVec.push_back(avgInvError);
+            finalInvErrorVec.push_back(finalInvError);
+            memUsageVec.push_back(memKB);
+            diagonalStepsVec.push_back(diagonalSteps);
+            sparseStepsVec.push_back(sparseSteps);
+            totalUpdateStepsVec.push_back(totalUpdateSteps);
+
+            plt::figure();
+            plt::plot(simTimes, nkfInvErrors, { {"label", methodNames[methodIdx]} });
+            plt::xlabel("Time (s)");
+            plt::ylabel("Inversion Error (‖J*S - I‖)");
+            plt::title("Error Dynamics for NKF: " + methodNames[methodIdx]);
+            plt::legend();
+            std::string plotFilename = results_dir + "/inv_error_plot_" + methodNames[methodIdx] + ".png";
+            plt::save(plotFilename);
+            std::cout << "Saved plot: " << plotFilename << std::endl;
     }
 
-    std::cout << "ekf_xy_error mean: " << ekf_xy_error_sum / ekf_xy_errors.size() << std::endl;
-    std::cout << "ukf_xy_error mean: " << ukf_xy_error_sum / ukf_xy_errors.size() << std::endl;
-    std::cout << "nkf_xy_error mean: " << nkf_xy_error_sum / nkf_xy_errors.size() << std::endl;
-    std::cout << "ekf_yaw_error mean: " << ekf_yaw_error_sum / ekf_yaw_errors.size() << std::endl;
-    std::cout << "ukf_yaw_error mean: " << ukf_yaw_error_sum / ukf_yaw_errors.size() << std::endl;
-    std::cout << "nkf_yaw_error mean: " << nkf_yaw_error_sum / nkf_yaw_errors.size() << std::endl;
+    csvFile.close();
 
-    // Построение графиков
-    matplotlibcpp::figure_size(1500, 900);
-    std::map<std::string, std::string> nkf_keywords;
-    std::map<std::string, std::string> ekf_keywords;
-    std::map<std::string, std::string> ukf_keywords;
-    nkf_keywords.insert(std::pair<std::string, std::string>("label", "nkf error"));
-    ekf_keywords.insert(std::pair<std::string, std::string>("label", "ekf error"));
-    ukf_keywords.insert(std::pair<std::string, std::string>("label", "ukf error"));
-    // matplotlibcpp::plot(times, nkf_xy_errors, nkf_keywords);
-    // matplotlibcpp::plot(times, ukf_xy_errors, ukf_keywords);
-    matplotlibcpp::plot(nkf_x_estimate, nkf_y_estimate, nkf_keywords);
-    matplotlibcpp::plot(ekf_x_estimate, ekf_y_estimate, ekf_keywords);
-    matplotlibcpp::plot(ukf_x_estimate, ukf_y_estimate, ukf_keywords);
-    matplotlibcpp::named_plot("true", x_true_vec, y_true_vec);
-    matplotlibcpp::legend();
-    matplotlibcpp::title("Result");
+    /////////////////////////////////
+    ///// Агрегированные графики по метрикам /////
+    /////////////////////////////////
+    std::vector<double> positions;
+    for (size_t i = 0; i < methodNames.size(); ++i) {
+        positions.push_back(static_cast<double>(i));
+    }
 
-    // Сейвлю графики в мою директорию
-    std::string plot_folder = "/Users/nikitakrivoshey/Desktop/ProjectOptimisation/MKF/results_NK";
-    std::filesystem::create_directories(plot_folder);
-    std::string plot_filename = plot_folder + "/graph.png";
-    matplotlibcpp::save(plot_filename);
+    // Total simulation time (ms)
+    plt::figure();
+    plt::bar(positions, totalTimeVec);
+    plt::xticks(positions, methodNames);
+    plt::xlabel("Method");
+    plt::ylabel("Total Time (ms)");
+    plt::title("Total Simulation Time for NKF");
+    plt::save(results_dir + "/total_time_bar.png");
+    std::cout << "Saved total time plot: " << results_dir + "/total_time_bar.png" << std::endl;
 
-    // Сразу показывюа график
-    matplotlibcpp::show();
+    // Average inversion error
+    plt::figure();
+    plt::bar(positions, avgInvErrorVec);
+    plt::xticks(positions, methodNames);
+    plt::xlabel("Method");
+    plt::ylabel("Average Inversion Error");
+    plt::title("Average Inversion Error for NKF");
+    plt::save(results_dir + "/avg_inv_error_bar.png");
+    std::cout << "Saved average inversion error plot: " << results_dir + "/avg_inv_error_bar.png" << std::endl;
+
+    // Final inversion error
+    plt::figure();
+    plt::bar(positions, finalInvErrorVec);
+    plt::xticks(positions, methodNames);
+    plt::xlabel("Method");
+    plt::ylabel("Final Inversion Error");
+    plt::title("Final Inversion Error for NKF");
+    plt::save(results_dir + "/final_inv_error_bar.png");
+    std::cout << "Saved final inversion error plot: " << results_dir + "/final_inv_error_bar.png" << std::endl;
+
+    // Memory usage (KB)
+    plt::figure();
+    plt::bar(positions, memUsageVec);
+    plt::xticks(positions, methodNames);
+    plt::xlabel("Method");
+    plt::ylabel("Memory Usage (KB)");
+    plt::title("Memory Usage for NKF");
+    plt::save(results_dir + "/mem_usage_bar.png");
+    std::cout << "Saved memory usage plot: " << results_dir + "/mem_usage_bar.png" << std::endl;
+
+    std::vector<double> diagonalPercent;
+    for (size_t i = 0; i < totalUpdateStepsVec.size(); ++i) {
+        diagonalPercent.push_back(totalUpdateStepsVec[i] > 0 ? 100.0 * diagonalStepsVec[i] / totalUpdateStepsVec[i] : 0.0);
+    }
+    plt::figure();
+    plt::bar(positions, diagonalPercent);
+    plt::xticks(positions, methodNames);
+    plt::xlabel("Method");
+    plt::ylabel("Diagonal Steps (%)");
+    plt::title("Percentage of Diagonal S in NKF");
+    plt::save(results_dir + "/diagonal_steps_bar.png");
+    std::cout << "Saved diagonal steps plot: " << results_dir + "/diagonal_steps_bar.png" << std::endl;
+
+    std::vector<double> sparsePercent;
+    for (size_t i = 0; i < totalUpdateStepsVec.size(); ++i) {
+        sparsePercent.push_back(totalUpdateStepsVec[i] > 0 ? 100.0 * sparseStepsVec[i] / totalUpdateStepsVec[i] : 0.0);
+    }
+    plt::figure();
+    plt::bar(positions, sparsePercent);
+    plt::xticks(positions, methodNames);
+    plt::xlabel("Method");
+    plt::ylabel("Sparse Steps (%)");
+    plt::title("Percentage of Sparse state_observation_cov in NKF");
+    plt::save(results_dir + "/sparse_steps_bar.png");
+    std::cout << "Saved sparse steps plot: " << results_dir + "/sparse_steps_bar.png" << std::endl;
 
     return 0;
 }
